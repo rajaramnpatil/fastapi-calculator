@@ -1,3 +1,9 @@
+import runpy
+from pathlib import Path
+from unittest.mock import Mock
+import uvicorn
+import main as calculator
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -52,3 +58,44 @@ def test_invalid_input_returns_400(client, payload, invalid_field):
 
     assert response.status_code == 400
     assert response.json()["error"].startswith(f"{invalid_field}:")
+
+
+@pytest.mark.parametrize("operation", ["add", "subtract", "multiply"])
+def test_arithmetic_failure_returns_400(client, monkeypatch, operation):
+    failing_operation = Mock(side_effect=ValueError("Calculation failed"))
+    monkeypatch.setattr(calculator, operation, failing_operation)
+
+    response = client.post(f"/{operation}", json={"a": 5, "b": 2})
+
+    assert response.status_code == 400
+    assert response.json() == {"error": "Calculation failed"}
+    failing_operation.assert_called_once_with(5.0, 2.0)
+
+
+def test_unexpected_division_failure_returns_500(client, monkeypatch):
+    failing_divide = Mock(side_effect=RuntimeError("Unexpected failure"))
+    monkeypatch.setattr(calculator, "divide", failing_divide)
+
+    response = client.post("/divide", json={"a": 5, "b": 2})
+
+    assert response.status_code == 500
+    assert response.json() == {"error": "Internal Server Error"}
+    failing_divide.assert_called_once_with(5.0, 2.0)
+
+
+def test_number_validator_rejects_non_numeric_value():
+    # Pydantic rejects invalid input before this after-validator receives it.
+    # Call the validator directly to exercise its defensive check.
+    with pytest.raises(ValueError, match=r"Both a and b must be numbers\."):
+        calculator.OperationRequest.validate_numbers("abc")
+
+
+def test_running_main_as_script_starts_uvicorn(monkeypatch):
+    start_server = Mock()
+    monkeypatch.setattr(uvicorn, "run", start_server)
+
+    script = runpy.run_path(str(Path(calculator.__file__)), run_name="__main__")
+
+    start_server.assert_called_once_with(
+        script["app"], host="127.0.0.1", port=8000
+    )

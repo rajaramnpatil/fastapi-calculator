@@ -6,7 +6,6 @@ __pycache__/
 .pytest_cache
 htmlcov
 .vscode/
-pytest.ini
 docker-compose.yml
 Dockerfile
 .dockerignore
