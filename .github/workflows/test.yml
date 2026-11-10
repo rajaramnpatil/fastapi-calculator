@@ -8,35 +8,38 @@ on:
 
 jobs:
  test:
-   runs-on: ubuntu-latest
+   runs-on: ubuntu-24.04
+
    steps:
-     - uses: actions/checkout@v3
-     - uses: actions/setup-python@v4
-       with:
-         python-version: '3.14'
-         
-     - uses: actions/cache@v3
-       with:
-         path: |
-           venv
-           ~/.cache/pip
-         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-         restore-keys: |
-           ${{ runner.os }}-pip-
+      - uses: actions/checkout@v6
 
-     - name: Install dependencies
-       run: |
-         python -m venv venv
-         source venv/bin/activate
-         pip install -r requirements.txt
-        
-     - name: Run tests
-       run: |
-         source venv/bin/activate
-         pytest tests/unit/ --cov=src --junitxml=test-results/junit.xml
-         pytest tests/integration/
-         pytest tests/e2e/
+      - name: Build calculator image
+        run: docker build -t fastapi-calculator .
 
+      - name: Start calculator and wait for it to respond
+        run: |
+          docker run -d --name fastapi-calculator \
+            -p 127.0.0.1:8000:8000 fastapi-calculator
+
+          for attempt in {1..30}; do
+            if curl --fail --silent --max-time 2 http://127.0.0.1:8000/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Calculator did not respond on port 8000."
+          exit 1
+
+      - name: Run unit, integration, and Playwright tests
+        run: docker exec fastapi-calculator python -m pytest tests/ -v
+
+      - name: Show calculator logs on failure
+        if: failure()
+        run: |
+          if docker container inspect fastapi-calculator >/dev/null 2>&1; then
+            docker logs fastapi-calculator
+          fi
  security:
    needs: test
    runs-on: ubuntu-latest
