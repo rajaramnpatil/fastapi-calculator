@@ -60,22 +60,30 @@ jobs:
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
 
-     - name: Show vulnerability locations
+     - name: Show setuptools diagnostics
        if: always()
        run: |
-           if [ -f trivy-results.json ]; then
+          if [ -f trivy-results.json ]; then
             jq '.Results[]? |
-              .Target as $target |
-              .Vulnerabilities[]? |
+              select(any(.Vulnerabilities[]?; .PkgName == "setuptools")) |
               {
-                target: $target,
-                package: .PkgName,
-                path: .PkgPath,
-                installed: .InstalledVersion,
-                fixed: .FixedVersion,
-                vulnerability: .VulnerabilityID
+                target: .Target,
+                findings: [
+                  .Vulnerabilities[]? |
+                  select(.PkgName == "setuptools")
+                ],
+                packages: [
+                  .Packages[]? |
+                  select(.Name == "setuptools")
+                ]
               }' trivy-results.json
-           fi
+          fi
+
+          docker run --rm --user root --entrypoint python app:test \
+            -c "import setuptools; print('Installed setuptools:', setuptools.__version__); print('Location:', setuptools.__file__)"
+
+          docker run --rm --user root --entrypoint find app:test \
+            /app /usr/local /usr/lib -iname '*setuptools*'
 
  deploy:
    needs: security
