@@ -63,31 +63,6 @@ jobs:
           # although pip bundles only pkg_resources from that package.
           skip-files: '**/site-packages/pip/_vendor/bom.cdx.json'
 
-     - name: Show setuptools diagnostics
-       if: always()
-       run: |
-          if [ -f trivy-results.json ]; then
-            jq '.Results[]? |
-              select(any(.Vulnerabilities[]?; .PkgName == "setuptools")) |
-              {
-                target: .Target,
-                findings: [
-                  .Vulnerabilities[]? |
-                  select(.PkgName == "setuptools")
-                ],
-                packages: [
-                  .Packages[]? |
-                  select(.Name == "setuptools")
-                ]
-              }' trivy-results.json
-          fi
-
-          docker run --rm --user root --entrypoint python app:test \
-            -c "import setuptools; print('Installed setuptools:', setuptools.__version__); print('Location:', setuptools.__file__)"
-
-          docker run --rm --user root --entrypoint find app:test \
-            /app /usr/local /usr/lib -iname '*setuptools*'
-
  deploy:
    needs: security
    if: github.ref == 'refs/heads/main'
