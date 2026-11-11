@@ -11,10 +11,15 @@ RUN groupadd --system appgroup \
 WORKDIR /app
 
 COPY requirements.txt .
-RUN python -m pip install --no-cache-dir -r requirements.txt
-RUN python -m playwright install --with-deps chromium \
-    && rm -rf /var/lib/apt/lists/*
 
+RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel \
+    && python -m pip install --no-cache-dir -r requirements.txt
+
+RUN python -m playwright install --with-deps chromium \
+    && apt-get update \
+    && apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/*
+    
 COPY --chown=appuser:appgroup . .
 
 USER appuser
