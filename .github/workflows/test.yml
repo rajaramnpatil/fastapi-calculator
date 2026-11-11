@@ -59,6 +59,9 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
+          # pip's embedded inventory lists setuptools 70.3.0,
+          # although pip bundles only pkg_resources from that package.
+          skip-files: '**/site-packages/pip/_vendor/bom.cdx.json'
 
      - name: Show setuptools diagnostics
        if: always()
